@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LUDAVideo</title>
+
+<style>
+body{
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family: Arial, sans-serif;
+}
+
+header{
+  padding:20px;
+  text-align:center;
+  border-bottom:1px solid #222;
+}
+
+h1{ margin:0 0 10px; }
+
+.search-bar{
+  width:90%;
+  max-width:500px;
+  padding:12px 18px;
+  border-radius:30px;
+  border:1px solid #333;
+  background:#111;
+  color:#fff;
+  font-size:16px;
+  outline:none;
+  text-align:center;
+}
+
+.controls{
+  margin-top:10px;
+}
+
+.controls button{
+  background:none;
+  border:1px solid #333;
+  color:#aaa;
+  padding:6px 14px;
+  border-radius:20px;
+  cursor:pointer;
+  margin:4px;
+}
+
+.moment{
+  margin-top:10px;
+  font-size:14px;
+  color:#aaa;
+}
+
+.results{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:16px;
+  padding:20px;
+}
+
+.card{
+  background:#111;
+  border-radius:12px;
+  overflow:hidden;
+  cursor:pointer;
+  transition:.2s;
+}
+
+.card:hover{ transform:scale(1.03); }
+
+.thumb{
+  width:100%;
+  aspect-ratio:16/9;
+  object-fit:cover;
+}
+
+.title{ padding:10px; font-size:14px; }
+
+.loader{
+  grid-column:1/-1;
+  text-align:center;
+  color:#888;
+  padding:40px;
+}
+
+/* PLAYER */
+.viewer{
+  position:fixed;
+  inset:0;
+  background:#000;
+  display:none;
+  z-index:999;
+}
+
+.viewer iframe{
+  width:100vw;
+  height:100vh;
+  border:none;
+}
+
+.close{
+  position:fixed;
+  top:14px;
+  right:14px;
+  background:rgba(0,0,0,.6);
+  border:1px solid #444;
+  color:#fff;
+  font-size:22px;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  cursor:pointer;
+  z-index:1000;
+}
+
+/* HISTORIAL */
+.history{
+  padding:20px;
+}
+
+.history h2{
+  margin-top:30px;
+  border-bottom:1px solid #222;
+  padding-bottom:6px;
+}
+
+.history-item{
+  padding:8px;
+  border-bottom:1px solid #222;
+  cursor:pointer;
+  color:#ccc;
+}
+
+.history-item:hover{ color:#fff; }
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>LUDAVideo</h1>
+  <input id="query" class="search-bar" placeholder="Buscar en YouTube...">
+
+  <div class="controls">
+    <button onclick="loadSmartSuggestion()">Recomendaciones</button>
+    <button onclick="showHistory()">Ver historial</button>
+  </div>
+
+  <div class="moment" id="momentText">Recomendaciones para el momento</div>
+</header>
+
+<div id="results" class="results"></div>
+
+<div class="viewer" id="viewer">
+  <button class="close" onclick="closePlayer()">×</button>
+  <iframe id="player" allowfullscreen allow="autoplay"></iframe>
+</div>
+
+<script>
+const BACKEND = "https://ludavideo-backend.onrender.com";
+const resultsEl = document.getElementById("results");
+const input = document.getElementById("query");
+const viewer = document.getElementById("viewer");
+const player = document.getElementById("player");
+const momentText = document.getElementById("momentText");
+
+const SEARCH_KEY = "luda_search_history";
+const WATCH_KEY  = "luda_watch_history";
+
+/* ===== HISTORIAL ===== */
+
+const get = k => JSON.parse(localStorage.getItem(k) || "[]");
+const set = (k,v) => localStorage.setItem(k,JSON.stringify(v));
+
+function saveSearch(q){
+  let h=get(SEARCH_KEY).filter(x=>x!==q);
+  h.unshift(q);
+  set(SEARCH_KEY,h);
+}
+
+function saveWatch(id,title){
+  let h=get(WATCH_KEY).filter(v=>v.id!==id);
+  h.unshift({id,title,time:new Date().toLocaleString()});
+  set(WATCH_KEY,h);
+}
+
+/* ===== SEARCH ===== */
+
+input.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const q=input.value.trim();
+    if(q){
+      saveSearch(q);
+      search(q);
+    }
+  }
+});
+
+/* ===== RECOMENDACIONES ===== */
+
+function loadSmartSuggestion(){
+  const s=get(SEARCH_KEY);
+  const q=s.length>=2?`${s[0]} ${s[1]}`:s[0]||"videos interesantes";
+  momentText.textContent="Basado en tu actividad reciente";
+  search(q);
+}
+
+/* ===== BUSCAR ===== */
+
+async function search(q){
+  resultsEl.innerHTML='<div class="loader">Buscando...</div>';
+  try{
+    const r=await fetch(`${BACKEND}/buscar?q=${encodeURIComponent(q)}`);
+    render(await r.json());
+  }catch{
+    resultsEl.innerHTML='<div class="loader">Error</div>';
+  }
+}
+
+function render(data){
+  resultsEl.innerHTML="";
+  data.forEach(v=>{
+    let id;
+    try{
+      const u=new URL(v.url);
+      id=u.searchParams.get("v")||u.pathname.split("/").pop();
+    }catch{return;}
+
+    const c=document.createElement("div");
+    c.className="card";
+    c.innerHTML=`
+      <img class="thumb" src="https://i.ytimg.com/vi/${id}/hqdefault.jpg">
+      <div class="title">${v.title}</div>
+    `;
+    c.onclick=()=>play(id,v.title);
+    resultsEl.appendChild(c);
+  });
+}
+
+/* ===== HISTORIAL UI ===== */
+
+function showHistory(){
+  const searches=get(SEARCH_KEY);
+  const watches=get(WATCH_KEY);
+
+  resultsEl.innerHTML=`
+    <div class="history">
+      <h2>🔎 Búsquedas</h2>
+      ${searches.map(s=>`
+        <div class="history-item" onclick="search('${s}')">${s}</div>
+      `).join("") || "<p>No hay búsquedas</p>"}
+
+      <h2>▶️ Vistos</h2>
+      ${watches.map(v=>`
+        <div class="history-item" onclick="play('${v.id}','${v.title}')">
+          ${v.title}<br><small>${v.time}</small>
+        </div>
+      `).join("") || "<p>No hay videos vistos</p>"}
+    </div>
+  `;
+}
+
+/* ===== PLAYER ===== */
+
+function play(id,title){
+  saveWatch(id,title);
+  viewer.style.display="block";
+  player.src=`https://www.youtube.com/embed/${id}?autoplay=1`;
+}
+
+function closePlayer(){
+  viewer.style.display="none";
+  player.src="";
+}
+
+loadSmartSuggestion();
+</script>
+
+</body>
+</html>
