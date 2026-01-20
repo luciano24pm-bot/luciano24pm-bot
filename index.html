@@ -101,19 +101,25 @@ h1{ margin:0 0 10px; }
   border:none;
 }
 
-.close{
+/* BOTONES SUPERIORES */
+.top-buttons{
   position:fixed;
   top:14px;
   right:14px;
+  display:flex;
+  gap:10px;
+  z-index:1000;
+}
+
+.top-buttons button{
   background:rgba(0,0,0,.6);
   border:1px solid #444;
   color:#fff;
-  font-size:22px;
+  font-size:20px;
   width:42px;
   height:42px;
   border-radius:50%;
   cursor:pointer;
-  z-index:1000;
 }
 
 /* HISTORIAL */
@@ -155,7 +161,10 @@ h1{ margin:0 0 10px; }
 <div id="results" class="results"></div>
 
 <div class="viewer" id="viewer">
-  <button class="close" onclick="closePlayer()">×</button>
+  <div class="top-buttons">
+    <button onclick="downloadVideo()">⬇</button>
+    <button onclick="closePlayer()">×</button>
+  </div>
   <iframe id="player" allowfullscreen allow="autoplay"></iframe>
 </div>
 
@@ -169,6 +178,8 @@ const momentText = document.getElementById("momentText");
 
 const SEARCH_KEY = "luda_search_history";
 const WATCH_KEY  = "luda_watch_history";
+
+let currentVideoId = null;
 
 /* ===== HISTORIAL ===== */
 
@@ -266,6 +277,7 @@ function showHistory(){
 /* ===== PLAYER ===== */
 
 function play(id,title){
+  currentVideoId = id;
   saveWatch(id,title);
   viewer.style.display="block";
   player.src=`https://www.youtube.com/embed/${id}?autoplay=1`;
@@ -274,6 +286,13 @@ function play(id,title){
 function closePlayer(){
   viewer.style.display="none";
   player.src="";
+  currentVideoId = null;
+}
+
+function downloadVideo(){
+  if(!currentVideoId) return;
+  const url = `https://ssyoutube.com/watch?v=${currentVideoId}`;
+  window.open(url, "_blank");
 }
 
 loadSmartSuggestion();
