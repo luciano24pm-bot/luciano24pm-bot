@@ -170,6 +170,8 @@ h1{ margin:0 0 10px; }
 
 <script>
 const BACKEND = "https://ludavideo-backend.onrender.com";
+const API_KEY = "ADcZ6Mu1OnSnXKzWb3xVQxLz5O8o7sEzrECcwmb/HQo="; // Tu Key Maestra
+
 const resultsEl = document.getElementById("results");
 const input = document.getElementById("query");
 const viewer = document.getElementById("viewer");
@@ -182,7 +184,6 @@ const WATCH_KEY  = "luda_watch_history";
 let currentVideoId = null;
 
 /* ===== HISTORIAL ===== */
-
 const get = k => JSON.parse(localStorage.getItem(k) || "[]");
 const set = (k,v) => localStorage.setItem(k,JSON.stringify(v));
 
@@ -198,22 +199,37 @@ function saveWatch(id,title){
   set(WATCH_KEY,h);
 }
 
-/* ===== SEARCH ===== */
+/* ===== EVENTOS ===== */
+input.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const q=input.value.trim();
+    if(q){
+      saveSearch(q);
+      search(q);
+    }
+  }
+});
+
+/* ===== BUSCAR (CONEXIÓN A API PROTEGIDA) ===== */
 async function search(q) {
   resultsEl.innerHTML = '<div class="loader">Buscando...</div>';
   try {
-    const r = await fetch(`${BACKEND}/buscar?q=${encodeURIComponent(q)}`);
-    const data = await r.json();
+    // Apuntamos a /api con la llave maestra
+    const r = await fetch(`${BACKEND}/api?key=${encodeURIComponent(API_KEY)}&q=${encodeURIComponent(q)}`);
     
-    // Si tu backend envía el array directo, esto es suficiente:
+    if (!r.ok) {
+        resultsEl.innerHTML = '<div class="loader">Límite alcanzado o Acceso Denegado.</div>';
+        return;
+    }
+
+    const data = await r.json();
     render(data); 
   } catch (error) {
-    resultsEl.innerHTML = '<div class="loader">Error al conectar</div>';
+    resultsEl.innerHTML = '<div class="loader">Error al conectar con el servidor</div>';
   }
 }
 
 /* ===== RECOMENDACIONES ===== */
-
 function loadSmartSuggestion(){
   const s=get(SEARCH_KEY);
   const q=s.length>=2?`${s[0]} ${s[1]}`:s[0]||"videos interesantes";
@@ -221,20 +237,13 @@ function loadSmartSuggestion(){
   search(q);
 }
 
-/* ===== BUSCAR ===== */
-
-async function search(q){
-  resultsEl.innerHTML='<div class="loader">Buscando...</div>';
-  try{
-    const r=await fetch(`${BACKEND}/buscar?q=${encodeURIComponent(q)}`);
-    render(await r.json());
-  }catch{
-    resultsEl.innerHTML='<div class="loader">Error</div>';
-  }
-}
-
 function render(data){
   resultsEl.innerHTML="";
+  if(!data || data.length === 0) {
+      resultsEl.innerHTML = '<div class="loader">No se encontraron resultados.</div>';
+      return;
+  }
+  
   data.forEach(v=>{
     let id;
     try{
@@ -254,7 +263,6 @@ function render(data){
 }
 
 /* ===== HISTORIAL UI ===== */
-
 function showHistory(){
   const searches=get(SEARCH_KEY);
   const watches=get(WATCH_KEY);
@@ -277,7 +285,6 @@ function showHistory(){
 }
 
 /* ===== PLAYER ===== */
-
 function play(id,title){
   currentVideoId = id;
   saveWatch(id,title);
