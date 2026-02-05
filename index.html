@@ -199,16 +199,18 @@ function saveWatch(id,title){
 }
 
 /* ===== SEARCH ===== */
-
-input.addEventListener("keydown",e=>{
-  if(e.key==="Enter"){
-    const q=input.value.trim();
-    if(q){
-      saveSearch(q);
-      search(q);
-    }
+async function search(q) {
+  resultsEl.innerHTML = '<div class="loader">Buscando...</div>';
+  try {
+    const r = await fetch(`${BACKEND}/buscar?q=${encodeURIComponent(q)}`);
+    const data = await r.json();
+    
+    // Si tu backend envía el array directo, esto es suficiente:
+    render(data); 
+  } catch (error) {
+    resultsEl.innerHTML = '<div class="loader">Error al conectar</div>';
   }
-});
+}
 
 /* ===== RECOMENDACIONES ===== */
 
